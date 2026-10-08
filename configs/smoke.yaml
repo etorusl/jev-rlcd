@@ -1,0 +1,68 @@
+# Fast end-to-end sanity check on the REAL model (loads from the HF cache).
+# Runs 2 optimizer steps + 1 eval + a save, with tiny decoding budgets, to verify
+# prompt build -> MC sampling -> readout + Brier backward -> eval -> checkpoint.
+#
+# Usage:  python train.py --config configs/smoke.yaml
+# (Run on the GPU node; the model is loaded 8-bit from cache, no network needed.)
+
+prompt:
+  mode: raw
+  marker: "Answer:"
+  disable_thinking: true
+  disable_thinking_phrase: " /no_think"
+
+label:
+  class_order: [1, 0]
+  label_strings:
+    1: ["1", " 1"]
+    0: ["0", " 0"]
+
+data:
+  path: samples.json
+  max_seq_len: 8192
+  oversize_policy: drop
+  val_fraction: 0.02
+  max_val_samples: 2
+  seed: 0
+  filter_cache: true
+
+model:
+  model_name_or_path: "Qwen/Qwen3.5-9B"
+  trust_remote_code: false
+  local_files_only: true
+  torch_dtype: bfloat16
+  attn_implementation: sdpa
+  quantization: 8bit
+  prepare_kbit_training: true
+  use_gradient_checkpointing: true
+  train_scope: lora_plus_head
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.0
+  lora_target_modules: null
+  modules_to_save: ["lm_head"]
+
+train:
+  output_dir: outputs/smoke
+  num_epochs: 1
+  max_steps: 2
+  micro_batch_size: 1
+  real_batch_size: 2
+  M: 2
+  sampling_mode: sequential
+  max_new_tokens: 96
+  temperature: 1.0
+  top_p: 1.0
+  lr: 2.0e-5
+  head_lr: 1.0e-4
+  bf16: true
+  tf32: true
+  log_every: 1
+  save_every: 1
+  eval_every: 1
+  max_eval_batches: 2
+  eval_M: 1
+  error_budgets: [0.05, 0.10]
+  save_eval_predictions: true
+  skip_oom: true
+  wandb: false

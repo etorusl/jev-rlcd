@@ -25,6 +25,7 @@ def load_tokenizer(cfg: ModelConfig):
         cfg.model_name_or_path,
         trust_remote_code=cfg.trust_remote_code,
         use_fast=True,
+        local_files_only=cfg.local_files_only,
     )
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -37,6 +38,7 @@ def load_model(cfg: ModelConfig, device_map=None):
         trust_remote_code=cfg.trust_remote_code,
         torch_dtype=dtype,
         attn_implementation=cfg.attn_implementation,
+        local_files_only=cfg.local_files_only,
     )
     if cfg.quantization in ("8bit", "4bit"):
         from transformers import BitsAndBytesConfig

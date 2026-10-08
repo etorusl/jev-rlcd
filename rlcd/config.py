@@ -101,6 +101,7 @@ class DataConfig:
 class ModelConfig:
     model_name_or_path: str = "Qwen/Qwen3.5-9B"
     trust_remote_code: bool = False
+    local_files_only: bool = False  # True -> load from the HF cache, no network
     torch_dtype: str = "bfloat16"  # "bfloat16" | "float16" | "float32"
     attn_implementation: str = "sdpa"  # sdpa dispatches to the flash kernel when available
 

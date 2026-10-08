@@ -54,7 +54,7 @@ rlcd/
   utils.py                   # param counting, memory logging
 configs/
   audit_qwen.yaml            # main task (Qwen, 8-bit, long context)
-  smoke_cpu.yaml             # tiny model, CPU, no quant — full-pipeline sanity run
+  smoke.yaml                 # fast end-to-end sanity run on the real model (from cache)
 scripts/
   setup_cluster.sh           # venv + deps + CUDA check
   run_train.sh               # launch (single or multi-GPU via accelerate)
@@ -111,10 +111,11 @@ python train.py --config configs/audit_qwen.yaml --set model.quantization=none
 python train.py --config configs/audit_qwen.yaml --set train.M=2 --set train.real_batch_size=4
 ```
 
-Sanity-check the whole pipeline on CPU with a tiny model first:
+Sanity-check the whole pipeline on the real model first (2 steps + eval + save,
+8-bit from cache, tiny decoding budget). Run it on the GPU node:
 
 ```bash
-python train.py --config configs/smoke_cpu.yaml
+python train.py --config configs/smoke.yaml
 ```
 
 ---
@@ -196,5 +197,9 @@ python scripts/check_env.py
 If the driver cannot run CUDA 12.4 wheels, pick a matching index
 (`cu126`, `cu121`, …) via `TORCH_INDEX_URL=... bash scripts/setup_cluster.sh`.
 `scripts/check_env.py` prints the whole stack and flags this exact problem up front.
+
+**Offline / cached models.** If the node has no HF network access, set
+`model.local_files_only: true` (as in `configs/smoke.yaml`) so weights load from
+the local HF cache; you can also export `HF_HUB_OFFLINE=1`.
 
 
