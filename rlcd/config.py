@@ -118,7 +118,7 @@ class ModelConfig:
     prepare_kbit_training: bool = True
 
     use_gradient_checkpointing: bool = True
-    gradient_checkpointing_use_reentrant: bool = False
+    gradient_checkpointing_use_reentrant: bool = True
 
     train_scope: str = "lora_plus_head"  # "lora_plus_head" | "lora_only" | "head_only"
 
