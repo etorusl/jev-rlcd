@@ -79,6 +79,22 @@ def setup_logging() -> None:
     )
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
+    # bitsandbytes spams "MatMul8bitLt: inputs will be cast ..." for every layer.
+    class _DropCastNoise(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            return "will be cast" not in record.getMessage()
+
+    for name in (
+        "bitsandbytes",
+        "bitsandbytes.autograd",
+        "bitsandbytes.autograd._functions",
+        "bitsandbytes.nn.modules",
+    ):
+        logger = logging.getLogger(name)
+        logger.setLevel(logging.ERROR)
+        logger.addFilter(_DropCastNoise())
+    logging.getLogger("transformers").setLevel(logging.WARNING)
+
 
 def main() -> None:
     setup_logging()
