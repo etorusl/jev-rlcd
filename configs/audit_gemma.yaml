@@ -34,7 +34,8 @@ data:
   prompt_field: prompt
   response_field: response
   label_field: label
-  max_seq_len: 50000       # hard cap; oversize samples are DROPPED (no truncation)
+  max_seq_len: 50000       # hard cap on total base input; oversize samples DROPPED
+  max_prompt_tokens: 25000 # cap on the {prompt} history alone (main OOM/slow driver)
   oversize_policy: drop
   val_fraction: 0.03
   max_val_samples: 150
@@ -65,9 +66,9 @@ train:
   num_epochs: 1
   micro_batch_size: 1
   real_batch_size: 8           # gradient accumulation target
-  M: 6                         # Monte-Carlo rationale samples per example
+  M: 4                         # Monte-Carlo rationale samples per example
   sampling_mode: sequential
-  max_new_tokens: 10000
+  max_new_tokens: 2048         # hard cap on rationale length (main time driver)
   temperature: 1.0
   top_p: 0.95                  # Gemma 4 recommended
   top_k: 64                    # Gemma 4 recommended

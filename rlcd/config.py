@@ -88,6 +88,10 @@ class DataConfig:
     # performed by default: oversize samples are dropped so training never sees
     # a broken / cut sample.
     max_seq_len: int = 50000
+    # Optional tighter cap on the {prompt} (interaction history) field alone, in
+    # tokens. Long histories are the main cause of OOM and slow generation.
+    # None => no prompt-specific cap.
+    max_prompt_tokens: Optional[int] = None
     oversize_policy: str = "drop"  # "drop" | "truncate"
     truncate_side: str = "middle"  # "head" | "tail" | "middle" (only if truncate)
 

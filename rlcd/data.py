@@ -80,29 +80,55 @@ class AuditDataset(Dataset):
         from tqdm import tqdm
 
         valid: List[int] = []
-        skipped = 0
+        dropped_base = 0
+        dropped_prompt = 0
+        prompt_lens: List[int] = []
+        max_prompt = self.dc.max_prompt_tokens
         for idx in tqdm(range(len(self.samples)), desc="filtering by length"):
             sample = self.samples[idx]
-            text = self.builder.base_text(
-                sample[self.dc.prompt_field], sample[self.dc.response_field]
-            )
-            n_tokens = len(self.builder._encode(text))
-            if n_tokens <= self.dc.max_seq_len:
-                valid.append(idx)
-            else:
-                skipped += 1
+            prompt_text = sample[self.dc.prompt_field]
+            response_text = sample[self.dc.response_field]
+
+            n_prompt = len(self.builder._encode(prompt_text))
+            prompt_lens.append(n_prompt)
+            if max_prompt is not None and n_prompt > max_prompt:
+                dropped_prompt += 1
+                continue
+
+            base_text = self.builder.base_text(prompt_text, response_text)
+            if len(self.builder._encode(base_text)) > self.dc.max_seq_len:
+                dropped_base += 1
+                continue
+            valid.append(idx)
 
         logger.info(
-            "Kept %d/%d samples (dropped %d over max_seq_len=%d)",
+            "Length filter: kept %d/%d | dropped %d (prompt>%s) | dropped %d (base>%d)",
             len(valid),
             len(self.samples),
-            skipped,
+            dropped_prompt,
+            max_prompt,
+            dropped_base,
             self.dc.max_seq_len,
         )
+        self._log_length_stats(prompt_lens)
         if cache_path:
             with open(cache_path, "w", encoding="utf-8") as handle:
                 json.dump(valid, handle)
         return valid
+
+    @staticmethod
+    def _log_length_stats(lengths: List[int]) -> None:
+        if not lengths:
+            return
+        ordered = sorted(lengths)
+
+        def pct(p: float) -> int:
+            return ordered[min(len(ordered) - 1, int(p * len(ordered)))]
+
+        logger.info(
+            "Prompt tokens (all samples): p50=%d p75=%d p90=%d p95=%d p99=%d max=%d",
+            pct(0.50), pct(0.75), pct(0.90), pct(0.95), pct(0.99), ordered[-1],
+        )
 
     def _cache_key(self) -> str:
         tok_name = getattr(self.builder.tokenizer, "name_or_path", "tokenizer")
@@ -110,6 +136,7 @@ class AuditDataset(Dataset):
             {
                 "path": self.dc.path,
                 "max_seq_len": self.dc.max_seq_len,
+                "max_prompt_tokens": self.dc.max_prompt_tokens,
                 "policy": self.dc.oversize_policy,
                 "prompt_mode": self.cfg.prompt.mode,
                 "marker": self.cfg.prompt.marker,

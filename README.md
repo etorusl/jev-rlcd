@@ -79,12 +79,21 @@ scripts/
 * The file is ~249 MB and therefore **gitignored** (GitHub's 100 MB limit).
   Copy it to the cluster (e.g. `scp`) or point `--data_path` at it.
 
-### No truncation policy
+### Length filtering (no truncation)
 
-`data.max_seq_len: 50000` is a **hard cap**, and `oversize_policy: drop` means
-samples whose base input exceeds it are **dropped**, never cut — we do not want
-truncated samples in the training set. The filter pass is cached under the output
-directory. (For other tasks you can set `oversize_policy: truncate` with
+`data.max_seq_len` (50000) caps the **total** base input (template + prompt +
+response), and `data.max_prompt_tokens` caps the **`prompt` history alone** (the
+main OOM / slow-generation driver; e.g. `25000`). Both use `oversize_policy: drop`
+— oversize samples are **dropped, never cut**, so no broken sample enters training.
+The filter logs how the set shrank and the prompt-token distribution (`p50/p90/p99/max`),
+e.g.:
+
+```
+Length filter: kept 5031/5705 | dropped 674 (prompt>25000) | dropped 0 (base>50000)
+Prompt tokens (all samples): p50=8123 p75=12904 p90=19022 p95=24310 p99=31044 max=32890
+```
+
+(For other tasks you can set `oversize_policy: truncate` with
 `truncate_side: head|tail|middle`.)
 
 ---
@@ -147,6 +156,17 @@ python train.py --config configs/smoke.yaml
   the prefill across the `M` samples when memory allows.
 * **OOM.** `train.skip_oom: true` catches CUDA OOM per micro-step, frees the
   cache and skips that accumulation group instead of crashing.
+* **Speed / memory levers** (generation dominates wall-clock):
+  * `train.max_new_tokens` — hard cap on rationale length (the biggest lever;
+    e.g. `2048`). Stopping on `Answer:` usually ends much earlier.
+  * `data.max_prompt_tokens` — drop long histories (main OOM + prefill cost).
+  * `train.M` — rationales per example (linear cost). `2`–`4` is plenty.
+  * `train.real_batch_size` — examples per optimizer step (× `M` generations).
+  * `model.lora_includes_lm_head: true` + `model.modules_to_save: []` — make the
+    readout head a small LoRA adapter instead of training a ~1B full head
+    (cuts trainable params and optimizer memory; slightly less expressive).
+  * `model.quantization: 4bit`, or `model.attn_implementation: flash_attention_2`
+    if flash-attn is installed.
 * **Answer token resolution.** `PromptBuilder` auto-resolves the token ids of
   class `1`/`0` as continuations of the marker and logs them at startup, e.g.
   `Answer token(s) for class 1: [(16, '1'), (...)]`. Surface variants `"1"` / `" 1"`
