@@ -20,8 +20,8 @@ source "${VENV}/bin/activate"
 echo ">> Upgrading pip"
 pip install --upgrade pip wheel
 
-echo ">> Installing PyTorch (torch>=2.6) from ${TORCH_INDEX_URL}"
-pip install "torch>=2.6.0" --index-url "${TORCH_INDEX_URL}"
+echo ">> Installing PyTorch (torch>=2.6) and torchvision from ${TORCH_INDEX_URL}"
+pip install "torch>=2.6.0" torchvision --index-url "${TORCH_INDEX_URL}"
 
 echo ">> Installing project requirements"
 pip install -r requirements.txt

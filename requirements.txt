@@ -15,8 +15,15 @@ protobuf>=4.25.0
 pyyaml>=6.0
 tqdm>=4.66.0
 numpy>=1.26.0
-# Multimodal processors (Gemma 4 / Qwen3.5) import PIL even for text-only input.
+# Multimodal processors (Gemma 4 / Qwen3.5) import PIL/torchvision even for
+# text-only input. Install torchvision from the SAME index as torch so the
+# builds match, e.g.:
+#   pip install torchvision --index-url https://download.pytorch.org/whl/cu124
 pillow>=10.0.0
+torchvision
+# Gemma 4 unified processor also references audio backends at import time.
+librosa
+soundfile
 
 # Optional logging
 # wandb>=0.17.0

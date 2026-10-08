@@ -34,6 +34,7 @@ def main() -> int:
     print("pyyaml        :", version("yaml"))
     print("numpy         :", version("numpy"))
     print("pillow        :", version("PIL"))
+    print("torchvision   :", version("torchvision"))
 
     print("cuda available:", torch.cuda.is_available())
     if torch.cuda.is_available():
