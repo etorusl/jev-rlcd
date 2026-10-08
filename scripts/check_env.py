@@ -33,6 +33,7 @@ def main() -> int:
     print("safetensors   :", version("safetensors"))
     print("pyyaml        :", version("yaml"))
     print("numpy         :", version("numpy"))
+    print("pillow        :", version("PIL"))
 
     print("cuda available:", torch.cuda.is_available())
     if torch.cuda.is_available():
