@@ -93,7 +93,13 @@ def setup_logging() -> None:
         logger = logging.getLogger(name)
         logger.setLevel(logging.ERROR)
         logger.addFilter(_DropCastNoise())
-    logging.getLogger("transformers").setLevel(logging.WARNING)
+    for name in ("transformers", "peft", "huggingface_hub", "httpx", "httpcore", "urllib3", "filelock"):
+        logging.getLogger(name).setLevel(logging.WARNING)
+
+    import warnings
+
+    warnings.filterwarnings("ignore", message=".*tie_word_embeddings.*")
+    warnings.filterwarnings("ignore", message=".*torch_dtype.*")
 
 
 def main() -> None:

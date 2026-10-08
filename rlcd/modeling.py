@@ -54,7 +54,6 @@ def load_model(cfg: ModelConfig, device_map=None):
     dtype = _DTYPE.get(cfg.torch_dtype, torch.bfloat16)
     kwargs = dict(
         trust_remote_code=cfg.trust_remote_code,
-        torch_dtype=dtype,
         attn_implementation=cfg.attn_implementation,
         local_files_only=cfg.local_files_only,
     )
@@ -77,18 +76,28 @@ def load_model(cfg: ModelConfig, device_map=None):
 
     auto_cls = _resolve_auto_class(cfg.auto_model_class)
     try:
-        model = auto_cls.from_pretrained(cfg.model_name_or_path, **kwargs)
+        model = _from_pretrained(auto_cls, cfg.model_name_or_path, dtype, kwargs)
     except ValueError as exc:
         if "does not recognize this architecture" in str(exc) or "Unrecognized" in str(exc):
             raise ValueError(
                 f"{cfg.model_name_or_path!r} uses an architecture this transformers "
-                f"build does not know ({exc}). New architectures (e.g. Qwen3.5) need "
-                f"transformers from main: "
+                f"build does not know ({exc}). New architectures need a newer "
+                f"transformers (pip install -U transformers), or from main: "
                 f"pip install 'transformers @ git+https://github.com/huggingface/transformers.git@main'"
             ) from exc
         raise
     model.config.use_cache = False
     return model
+
+
+def _from_pretrained(auto_cls, path: str, dtype, kwargs: dict):
+    """Call from_pretrained with `dtype` (new API) or `torch_dtype` (old)."""
+    try:
+        return auto_cls.from_pretrained(path, dtype=dtype, **kwargs)
+    except TypeError as exc:
+        if "dtype" in str(exc):
+            return auto_cls.from_pretrained(path, torch_dtype=dtype, **kwargs)
+        raise
 
 
 def _resolve_auto_class(name: str):
@@ -129,6 +138,31 @@ def prepare_model(model, cfg: ModelConfig):
         model = prepare_model_for_kbit_training(
             model, use_gradient_checkpointing=False
         )
+    return model
+
+
+def untie_lm_head_if_needed(model, cfg: ModelConfig):
+    """Clone a tied output head so calibrating the readout doesn't touch embeddings."""
+    if not cfg.untie_lm_head:
+        return model
+    wants_head = cfg.lora_includes_lm_head or any("lm_head" in m for m in cfg.modules_to_save)
+    if not wants_head:
+        return model
+    config = getattr(model, "config", None)
+    try:
+        out = model.get_output_embeddings()
+    except Exception:  # noqa: BLE001
+        out = None
+    if out is None or getattr(out, "weight", None) is None:
+        return model
+    if getattr(config, "tie_word_embeddings", False):
+        out.weight = nn.Parameter(out.weight.detach().clone())
+        config.tie_word_embeddings = False
+        try:
+            model.tie_word_embeddings(False)
+        except Exception:  # noqa: BLE001
+            pass
+        logger.info("Untied lm_head from input embeddings (readout isolated)")
     return model
 
 
@@ -218,6 +252,7 @@ def _gradient_targets(model):
 def build_model(cfg: ModelConfig, device_map=None):
     tokenizer, processor = load_tokenizer(cfg)
     model = load_model(cfg, device_map=device_map)
+    model = untie_lm_head_if_needed(model, cfg)
     model = prepare_model(model, cfg)
     model = apply_peft(model, cfg)
     model = configure_training_mode(model, cfg)

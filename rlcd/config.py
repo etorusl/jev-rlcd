@@ -136,6 +136,10 @@ class ModelConfig:
     lora_includes_lm_head: bool = False
     # Fully-trainable modules kept outside the adapter (readout calibration).
     modules_to_save: List[str] = field(default_factory=lambda: ["lm_head"])
+    # If lm_head is tied to the input embeddings, clone it first so calibrating
+    # the readout does not also mutate input embeddings (and to avoid PEFT's
+    # tie_word_embeddings warning).
+    untie_lm_head: bool = True
 
 
 @dataclass
