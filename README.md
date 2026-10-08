@@ -156,8 +156,28 @@ python train.py --config configs/smoke_cpu.yaml
 
 ---
 
-## Outputs
+## Outputs & evaluation
 
 Checkpoints (adapter / head + tokenizer + `rlcd_config.json`) are written to
-`train.output_dir/step_*` and `.../final`. Evaluation reports accuracy, Brier and
-AUROC on the held-out split.
+`train.output_dir/step_*` and `.../final`. Per-sample probabilities are dumped to
+`<output_dir>/eval/step_<N>.jsonl` (with a `_metrics.json` alongside) so you can
+inspect mistakes offline.
+
+Evaluation (`eval_every` steps and at the end) reports:
+
+| Metric | Meaning | Desired |
+| --- | --- | --- |
+| `brier` | Brier score = mean squared error of the predicted class probabilities vs the 0/1 label (the core RLCD objective) | ↓ |
+| `brier_baseline` | Brier of a constant predictor at the class base rate | reference |
+| `aurc` | Area under the risk–coverage curve: how well confidence correlates with actual errors | ↓ |
+| `cov@0.05`, `cov@0.10` | Coverage achievable while keeping selective error ≤ 5% / 10% | ↑ |
+| `ece` | Expected calibration error | ↓ |
+| `auroc` | ROC-AUC of P(hallucination) | ↑ |
+| `pr_auc` | PR-AUC (average precision) — more informative under class imbalance (~9% positives) | ↑ |
+| `f1`, `precision`, `recall` | Positive-class (hallucination) detection | ↑ |
+| `acc`, `acc_majority` | Accuracy vs. majority-class baseline | ↑ |
+
+If `brier` does not fall below `brier_baseline`, or `auroc`/`pr_auc` stay at
+chance, the readout has not learned to associate the model's own rationales with
+the answer. Watch `aurc`/`cov@*` specifically: they are what RLCD Stage 1 targets.
+

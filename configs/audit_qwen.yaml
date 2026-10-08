@@ -84,5 +84,7 @@ train:
   eval_every: 100
   max_eval_batches: 64      # eval also runs the generator -> keep it bounded
   eval_M: 1
+  error_budgets: [0.05, 0.10]   # Cov@epsilon thresholds
+  save_eval_predictions: true   # dump per-sample probs/labels to <output_dir>/eval/
   skip_oom: true
   wandb: false

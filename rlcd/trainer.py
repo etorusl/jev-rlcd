@@ -24,6 +24,20 @@ from .sampling import sample_cot_full_ids
 logger = logging.getLogger(__name__)
 
 
+def _format_metrics(metrics: Dict[str, float]) -> str:
+    order = [
+        "acc", "f1", "precision", "recall", "auroc", "pr_auc",
+        "brier", "brier_baseline", "ece", "aurc", "pos_rate", "acc_majority",
+    ]
+    parts = []
+    for key in order:
+        if key in metrics:
+            parts.append(f"{key}={metrics[key]:.4f}")
+    for key in sorted(k for k in metrics if k.startswith("cov@")):
+        parts.append(f"{key}={metrics[key]:.3f}")
+    return " ".join(parts)
+
+
 class RLCDTrainer:
     def __init__(self, cfg: Config, accelerator, model, tokenizer, prompt_builder: PromptBuilder):
         self.cfg = cfg
@@ -235,6 +249,7 @@ class RLCDTrainer:
 
         all_probs: List[torch.Tensor] = []
         labels: List[int] = []
+        sample_indices: List[int] = []
         limit = min(len(self.val_dataset), cfg.max_eval_batches)
         for i in tqdm(range(limit), desc="eval", leave=False):
             sample = self.val_dataset[i]
@@ -259,19 +274,38 @@ class RLCDTrainer:
                     )
                 all_probs.append(torch.stack(probs).mean(0).cpu())
                 labels.append(sample["label"])
+                sample_indices.append(sample.get("index", i))
 
         self.model.config.use_cache = False
         self.model.train()
         if not all_probs:
             return {}
         probs = torch.stack(all_probs)
-        metrics, _ = summarize(
-            probs, labels, self.builder.class_order, self.cfg.label.positive_label
+        metrics, predictions = summarize(
+            probs,
+            labels,
+            self.builder.class_order,
+            self.cfg.label.positive_label,
+            error_budgets=cfg.error_budgets,
         )
         logged = {f"eval/{k}": float(v) for k, v in metrics.items()}
-        logger.info("Eval @ step %d: %s", self.global_step, metrics)
         self.accelerator.log(logged, self.global_step)
+        logger.info("Eval @ step %d | %s", self.global_step, _format_metrics(metrics))
+        if self.accelerator.is_main_process and cfg.save_eval_predictions:
+            self._dump_predictions(metrics, predictions, sample_indices)
         return metrics
+
+    def _dump_predictions(self, metrics, predictions, sample_indices) -> None:
+        out_dir = os.path.join(self.cfg.train.output_dir, "eval")
+        os.makedirs(out_dir, exist_ok=True)
+        path = os.path.join(out_dir, f"step_{self.global_step}.jsonl")
+        with open(path, "w", encoding="utf-8") as handle:
+            for idx, pred in zip(sample_indices, predictions):
+                record = {"index": idx, **pred}
+                handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+        with open(os.path.join(out_dir, f"step_{self.global_step}_metrics.json"), "w", encoding="utf-8") as handle:
+            json.dump(metrics, handle, indent=2)
+        logger.info("Wrote eval predictions to %s", path)
 
     # -------------------------------------------------------------- checkpoint
     def save_checkpoint(self, tag: Optional[str] = None):

@@ -163,6 +163,8 @@ class TrainConfig:
     eval_every: int = 100
     max_eval_batches: int = 50
     eval_M: int = 1
+    error_budgets: List[float] = field(default_factory=lambda: [0.05, 0.10])
+    save_eval_predictions: bool = True
 
     skip_oom: bool = True
     resume_from_checkpoint: Optional[str] = None
