@@ -26,11 +26,13 @@ pip install "torch>=2.6.0" --index-url "${TORCH_INDEX_URL}"
 echo ">> Installing project requirements"
 pip install -r requirements.txt
 
-# Qwen3.5 (and other brand-new architectures) need transformers from main.
-# Override with TRANSFORMERS_SPEC=transformers==4.xx.y to use a release instead.
-TRANSFORMERS_SPEC="${TRANSFORMERS_SPEC:-transformers @ git+https://github.com/huggingface/transformers.git@main}"
-echo ">> Installing transformers: ${TRANSFORMERS_SPEC}"
-pip install "${TRANSFORMERS_SPEC}"
+# Use the latest PyPI release of transformers (supports Gemma 4).
+# Only if the model architecture is still unrecognized, install from main:
+#   TRANSFORMERS_SPEC='transformers @ git+https://github.com/huggingface/transformers.git@main' \
+#     bash scripts/setup_cluster.sh
+TRANSFORMERS_SPEC="${TRANSFORMERS_SPEC:-transformers>=4.44.0}"
+echo ">> Installing/upgrading transformers: ${TRANSFORMERS_SPEC}"
+pip install -U "${TRANSFORMERS_SPEC}"
 
 echo ">> Verifying the environment"
 python scripts/check_env.py

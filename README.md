@@ -216,8 +216,10 @@ export HF_HOME=/workspace/data/hf_cache   # put on a volume with space
 `google/gemma-4-12B-it` (dense 12B, 256K context) and `Qwen/Qwen3.5-9B` are both
 very new and **multimodal**, which affects loading here:
 
-* **Architecture may be unknown to pip `transformers`** (e.g. `model_type:
-  qwen3_5`) → install transformers from `main` (see Troubleshooting / setup script).
+* **Keep transformers up to date.** Gemma 4 works on the latest PyPI release
+  (`pip install -U transformers`); only an architecture absent from every release
+  (e.g. `model_type: qwen3_5` at launch) needs `main`:
+  `pip install "transformers @ git+https://github.com/huggingface/transformers.git@main"`.
 * **Load with the right classes.** Multimodal checkpoints use `AutoProcessor` +
   `AutoModelForMultimodalLM`; `configs/audit_gemma.yaml` sets this already:
   ```yaml
