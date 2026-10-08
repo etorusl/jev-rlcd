@@ -181,3 +181,20 @@ If `brier` does not fall below `brier_baseline`, or `auroc`/`pr_auc` stay at
 chance, the readout has not learned to associate the model's own rationales with
 the answer. Watch `aurc`/`cov@*` specifically: they are what RLCD Stage 1 targets.
 
+## Troubleshooting
+
+**`AttributeError: module 'torch' has no attribute 'accelerator'` / `Could not
+import module 'GenerationMixin'`.** A torch/transformers version mismatch: recent
+`transformers` import `torch.accelerator`, added in **torch 2.6**. Reinstall with
+
+```bash
+pip install "torch>=2.6.0" --index-url https://download.pytorch.org/whl/cu124
+pip install -r requirements.txt
+python scripts/check_env.py
+```
+
+If the driver cannot run CUDA 12.4 wheels, pick a matching index
+(`cu126`, `cu121`, …) via `TORCH_INDEX_URL=... bash scripts/setup_cluster.sh`.
+`scripts/check_env.py` prints the whole stack and flags this exact problem up front.
+
+

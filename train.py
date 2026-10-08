@@ -85,6 +85,13 @@ def main() -> None:
     args = parse_args()
     cfg = build_config(args)
 
+    if not hasattr(torch, "accelerator"):
+        raise SystemExit(
+            f"torch {torch.__version__} is too old: recent transformers builds require "
+            "the `torch.accelerator` namespace (torch>=2.6). Reinstall with "
+            "`pip install 'torch>=2.6.0'` (see scripts/setup_cluster.sh)."
+        )
+
     from accelerate import Accelerator
     from accelerate.utils import set_seed
 
