@@ -344,6 +344,7 @@ class RLCDTrainer:
         with open(os.path.join(save_dir, "rlcd_config.json"), "w", encoding="utf-8") as handle:
             json.dump(self.cfg.to_dict(), handle, indent=2, default=str)
         logger.info("Saved checkpoint to %s", save_dir)
+        logger.info("Checkpoint files: %s", sorted(os.listdir(save_dir)))
         self.accelerator.wait_for_everyone()
 
     def _save_trainable_state(self, model, save_dir: str):

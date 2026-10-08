@@ -197,7 +197,10 @@ def apply_peft(model, cfg: ModelConfig):
         ] or None
 
     logger.info("LoRA target modules: %s", target_modules)
-    logger.info("LoRA modules_to_save: %s", modules_to_save)
+    logger.info(
+        "LoRA modules_to_save: %s",
+        modules_to_save if modules_to_save else "none (all trainable weights live in the adapter)",
+    )
 
     lora_config = LoraConfig(
         r=cfg.lora_r,
