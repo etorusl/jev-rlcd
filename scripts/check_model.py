@@ -39,6 +39,8 @@ def find_repo_dirs(model_id: str) -> list[str]:
     # Fallback: brute force a few likely roots.
     for root in ("/workspace", "/data", os.path.expanduser("~")):
         for dirpath, dirnames, _ in os.walk(root):
+            if ".locks" in dirpath.split(os.sep):
+                continue
             if folder in dirnames:
                 found.append(os.path.join(dirpath, folder))
             if dirpath.count(os.sep) > 6:
@@ -66,6 +68,15 @@ def main() -> int:
     print("HF_HOME        :", os.environ.get("HF_HOME"))
     print("HF_HUB_CACHE   :", os.environ.get("HF_HUB_CACHE"))
     print("searched dirs  :", cache_dirs())
+    try:
+        from huggingface_hub import constants
+
+        active = constants.HF_HUB_CACHE
+        print("active hub     :", active)
+        if not os.path.isdir(active):
+            print(f"  !! active hub cache does not exist: {active}")
+    except Exception:  # noqa: BLE001
+        active = None
 
     try:
         from huggingface_hub import scan_cache_dir
@@ -92,6 +103,18 @@ def main() -> int:
         print(f"  {len(names)} files in snapshots:")
         for name in names:
             print("   -", name)
+
+    hub_dirs = {os.path.dirname(d) for d in repo_dirs}
+    if active is not None and not any(d == active for d in hub_dirs):
+        hub = sorted(hub_dirs)[0]
+        hf_home = os.path.dirname(hub)
+        print("\n!! The cache that holds this model is NOT the active HF cache:")
+        print(f"   model hub : {hub}")
+        print(f"   active hub: {active}")
+        print("   Fix one of:")
+        print(f"     unset HF_HOME")
+        print(f"     export HF_HOME={hf_home}")
+        print(f"     export HF_HUB_CACHE={hub}")
 
     print("\n=== loader probes (local_files_only=True) ===")
     from transformers import AutoProcessor, AutoTokenizer
