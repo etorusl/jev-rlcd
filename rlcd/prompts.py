@@ -40,6 +40,9 @@ class PromptBuilder:
         self.marker_variants = self._marker_variants()
         self.class_order = list(label_cfg.class_order)
         self.class_token_ids = self._resolve_class_token_ids()
+        # Number of generated rationales that ended without the marker (i.e. were
+        # cut off by max_new_tokens). Compared against total rationales sampled.
+        self.marker_missing = 0
 
     # ------------------------------------------------------------------ utils
     def _encode(self, text: str) -> List[int]:
@@ -173,6 +176,7 @@ class PromptBuilder:
             if end is not None and (best_end is None or end < best_end):
                 best_end = end
         if best_end is None:
+            self.marker_missing += 1
             marker = torch.tensor(
                 self.marker_variants[0], dtype=cot_ids.dtype, device=cot_ids.device
             )

@@ -53,6 +53,7 @@ class RLCDTrainer:
         self.val_dataset: Optional[AuditDataset] = None
         self.global_step = 0
         self.epoch = 0
+        self.sampled_rationales = 0
 
     # ------------------------------------------------------------------ setup
     def build_optimizer(self):
@@ -185,6 +186,7 @@ class RLCDTrainer:
                             full_list = sample_cot_full_ids(
                                 self.model, self.builder, base_ids, cfg.M, cfg
                             )
+                            self.sampled_rationales += len(full_list)
                             for full_ids in full_list:
                                 loss = self._readout_forward(full_ids, sample["label"], cfg.M)
                                 self.accelerator.backward(loss)
@@ -228,9 +230,22 @@ class RLCDTrainer:
                     self.optimizer.zero_grad(set_to_none=True)
 
             if self.accelerator.sync_gradients:
-                pbar.set_postfix(step=self.global_step, loss=f"{loss_value:.4f}", skip=skipped)
+                cut = self.builder.marker_missing / max(1, self.sampled_rationales)
+                pbar.set_postfix(
+                    step=self.global_step,
+                    loss=f"{loss_value:.4f}",
+                    skip=skipped,
+                    cut=f"{cut:.2%}",
+                )
                 if self.global_step % cfg.log_every == 0:
-                    self.accelerator.log({"train/loss": loss_value, "train/skipped": skipped}, self.global_step)
+                    self.accelerator.log(
+                        {
+                            "train/loss": loss_value,
+                            "train/skipped": skipped,
+                            "train/marker_cut_rate": cut,
+                        },
+                        self.global_step,
+                    )
                 if cfg.eval_every and self.global_step % cfg.eval_every == 0 and self.val_dataset is not None:
                     self.evaluate()
                 if cfg.save_every and self.global_step % cfg.save_every == 0:
