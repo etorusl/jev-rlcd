@@ -1,8 +1,12 @@
 # Core (GPU cluster) — versions must be mutually compatible.
 # torch>=2.6 provides the torch.accelerator namespace that recent
 # transformers builds import at load time (older torch -> ImportError).
+# NOTE: brand-new architectures such as Qwen3.5 (model_type qwen3_5) are NOT in
+# any pip release yet — install transformers from main:
+#   pip install "transformers @ git+https://github.com/huggingface/transformers.git@main"
+# (scripts/setup_cluster.sh does this automatically).
 torch>=2.6.0
-transformers>=4.44.0,<5
+transformers>=4.44.0,<6
 accelerate>=0.33.0
 peft>=0.12.0
 bitsandbytes>=0.43.0

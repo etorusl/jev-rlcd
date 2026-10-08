@@ -202,4 +202,48 @@ If the driver cannot run CUDA 12.4 wheels, pick a matching index
 `model.local_files_only: true` (as in `configs/smoke.yaml`) so weights load from
 the local HF cache; you can also export `HF_HUB_OFFLINE=1`.
 
+**Disk space.** The HF cache defaults to `~/.cache/huggingface`. If that volume is
+full you will see `Not enough free disk space to download the file`. Point it at a
+roomy disk before running (Qwen3.5-9B is ~20 GB in bf16):
+
+```bash
+export HF_HOME=/workspace/data/hf_cache   # put on a volume with space
+```
+
+## Qwen3.5 specifics
+
+`Qwen/Qwen3.5-9B` is a very new checkpoint and differs from Qwen3 in ways that
+matter here:
+
+* **Architecture is unknown to pip `transformers`** (`model_type: qwen3_5`) →
+  install transformers from `main` (see Troubleshooting / setup script).
+* **It is multimodal + hybrid** (vision encoder + Gated DeltaNet/attention +
+  sparse MoE). It loads via `AutoModelForMultimodalLM` rather than
+  `AutoModelForCausalLM`. This is exposed as `model.auto_model_class`:
+  ```bash
+  python train.py --config configs/audit_qwen.yaml --set model.auto_model_class=AutoModelForMultimodalLM
+  ```
+  If a text-only forward pass fails on the multimodal wrapper, use a text-only
+  base model instead or a vLLM `--language-model-only` style export.
+* **There is no soft `/think` `/nothink` switch** (unlike Qwen3). Thinking is
+  toggled through the chat template. Our default `Raw` template cannot disable
+  it, so for Qwen3.5 prefer:
+  ```yaml
+  prompt:
+    mode: chat_template
+    disable_thinking: true   # -> enable_thinking=False in apply_chat_template
+  ```
+* **LoRA over "all linear layers" can be huge** because MoE expert projections are
+  Linear too. If the adapter explodes in size or OOMs, exclude them:
+  ```bash
+  --set model.lora_exclude_modules='["experts","router"]' \
+  --set model.lora_target_modules='["q_proj","k_proj","v_proj","o_proj"]'
+  ```
+  (Inspect the real names first with `--set` off + the startup log, or a 5-line
+  `named_modules()` print.)
+* **8-bit bitsandbytes** may not yet support this hybrid architecture; if
+  quantization fails, fall back to full precision: `--set model.quantization=none`
+  (bf16 needs ~20 GB of weights on an 80 GB H100).
+
+
 

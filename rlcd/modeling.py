@@ -7,7 +7,7 @@ from typing import List, Optional
 
 import torch
 import torch.nn as nn
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoTokenizer
 
 from .config import ModelConfig
 
@@ -57,20 +57,46 @@ def load_model(cfg: ModelConfig, device_map=None):
             )
         kwargs["device_map"] = device_map if device_map is not None else "auto"
 
-    model = AutoModelForCausalLM.from_pretrained(cfg.model_name_or_path, **kwargs)
+    auto_cls = _resolve_auto_class(cfg.auto_model_class)
+    try:
+        model = auto_cls.from_pretrained(cfg.model_name_or_path, **kwargs)
+    except ValueError as exc:
+        if "does not recognize this architecture" in str(exc) or "Unrecognized" in str(exc):
+            raise ValueError(
+                f"{cfg.model_name_or_path!r} uses an architecture this transformers "
+                f"build does not know ({exc}). New architectures (e.g. Qwen3.5) need "
+                f"transformers from main: "
+                f"pip install 'transformers @ git+https://github.com/huggingface/transformers.git@main'"
+            ) from exc
+        raise
     model.config.use_cache = False
     return model
 
 
-def _linear_module_names(model: nn.Module, include_lm_head: bool) -> List[str]:
+def _resolve_auto_class(name: str):
+    import transformers
+
+    cls = getattr(transformers, name, None)
+    if cls is None:
+        available = [n for n in dir(transformers) if n.startswith("AutoModel")]
+        raise ValueError(
+            f"auto_model_class {name!r} not found in transformers "
+            f"{getattr(transformers, '__version__', '?')}. Available: {available}"
+        )
+    return cls
+
+
+def _linear_module_names(model: nn.Module, include_lm_head: bool, exclude: List[str]) -> List[str]:
     from bitsandbytes.nn import Linear4bit, Linear8bitLt
 
     linear_types = (nn.Linear, Linear8bitLt, Linear4bit)
     names = set()
     for name, module in model.named_modules():
-        if isinstance(module, linear_types) and not name.endswith("lm_head"):
-            leaf = name.split(".")[-1]
-            names.add(leaf)
+        if not isinstance(module, linear_types) or name.endswith("lm_head"):
+            continue
+        if exclude and any(pat in name for pat in exclude):
+            continue
+        names.add(name.split(".")[-1])
     if include_lm_head:
         names.add("lm_head")
     if not names:
@@ -108,7 +134,9 @@ def apply_peft(model, cfg: ModelConfig):
 
     target_modules = cfg.lora_target_modules
     if target_modules is None:
-        target_modules = _linear_module_names(model, include_lm_head=cfg.lora_includes_lm_head)
+        target_modules = _linear_module_names(
+            model, include_lm_head=cfg.lora_includes_lm_head, exclude=cfg.lora_exclude_modules
+        )
 
     modules_to_save = None
     if cfg.train_scope == "lora_plus_head" and cfg.modules_to_save:

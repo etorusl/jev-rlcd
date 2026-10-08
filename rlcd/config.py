@@ -105,6 +105,11 @@ class ModelConfig:
     torch_dtype: str = "bfloat16"  # "bfloat16" | "float16" | "float32"
     attn_implementation: str = "sdpa"  # sdpa dispatches to the flash kernel when available
 
+    # Which Auto* class to load with. Newest multimodal checkpoints (e.g.
+    # Qwen3.5) may need "AutoModelForMultimodalLM"; text-only use
+    # "AutoModelForCausalLM".
+    auto_model_class: str = "AutoModelForCausalLM"
+
     quantization: str = "8bit"  # "none" | "8bit" | "4bit"
     bnb_4bit_quant_type: str = "nf4"
     bnb_4bit_use_double_quant: bool = True
@@ -121,6 +126,9 @@ class ModelConfig:
     lora_bias: str = "none"
     # None => every nn.Linear (bnb Linear8bitLt/Linear4bit included).
     lora_target_modules: Optional[List[str]] = None
+    # Substring filters applied when auto-detecting target modules. Use this to
+    # skip MoE experts / router when "all linear" is too large.
+    lora_exclude_modules: List[str] = field(default_factory=list)
     # When True, lm_head itself gets a LoRA adapter instead of being fully trained.
     lora_includes_lm_head: bool = False
     # Fully-trainable modules kept outside the adapter (readout calibration).

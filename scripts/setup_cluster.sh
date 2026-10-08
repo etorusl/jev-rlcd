@@ -26,6 +26,12 @@ pip install "torch>=2.6.0" --index-url "${TORCH_INDEX_URL}"
 echo ">> Installing project requirements"
 pip install -r requirements.txt
 
+# Qwen3.5 (and other brand-new architectures) need transformers from main.
+# Override with TRANSFORMERS_SPEC=transformers==4.xx.y to use a release instead.
+TRANSFORMERS_SPEC="${TRANSFORMERS_SPEC:-transformers @ git+https://github.com/huggingface/transformers.git@main}"
+echo ">> Installing transformers: ${TRANSFORMERS_SPEC}"
+pip install "${TRANSFORMERS_SPEC}"
+
 echo ">> Verifying the environment"
 python scripts/check_env.py
 
