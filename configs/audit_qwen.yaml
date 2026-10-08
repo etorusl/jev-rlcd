@@ -82,7 +82,7 @@ train:
   log_every: 1
   save_every: 200
   eval_every: 100
-  max_eval_batches: 150
+  max_eval_batches: 64      # eval also runs the generator -> keep it bounded
   eval_M: 1
   skip_oom: true
   wandb: false
