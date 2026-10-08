@@ -65,7 +65,7 @@ train:
   num_epochs: 1
   micro_batch_size: 1
   real_batch_size: 8           # gradient accumulation target
-  M: 4                         # Monte-Carlo rationale samples
+  M: 6                         # Monte-Carlo rationale samples per example
   sampling_mode: sequential
   max_new_tokens: 10000
   temperature: 1.0

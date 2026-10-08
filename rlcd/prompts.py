@@ -173,7 +173,9 @@ class PromptBuilder:
             if end is not None and (best_end is None or end < best_end):
                 best_end = end
         if best_end is None:
-            marker = torch.tensor(self.marker_variants[0], dtype=cot_ids.dtype)
+            marker = torch.tensor(
+                self.marker_variants[0], dtype=cot_ids.dtype, device=cot_ids.device
+            )
             return torch.cat([cot_ids, marker])
         return cot_ids[:best_end]
 
