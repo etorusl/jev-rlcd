@@ -2,7 +2,7 @@
 # Launch RLCD Stage 1 training (single H100 by default).
 set -euo pipefail
 
-CONFIG="${CONFIG:-configs/audit_qwen.yaml}"
+CONFIG="${CONFIG:-configs/audit_gemma.yaml}"
 NUM_PROCESSES="${NUM_PROCESSES:-1}"
 OUTPUT_DIR="${OUTPUT_DIR:-outputs/rlcd_audit}"
 

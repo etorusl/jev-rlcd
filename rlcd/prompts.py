@@ -20,10 +20,17 @@ class PromptBuilder:
     marker*.  It auto-detects those ids and validates them at startup.
     """
 
-    def __init__(self, tokenizer, prompt_cfg: PromptConfig, label_cfg: LabelConfig) -> None:
+    def __init__(
+        self,
+        tokenizer,
+        prompt_cfg: PromptConfig,
+        label_cfg: LabelConfig,
+        chat_template_fn=None,
+    ) -> None:
         self.tokenizer = tokenizer
         self.pc = prompt_cfg
         self.lc = label_cfg
+        self.chat_template_fn = chat_template_fn
 
         if tokenizer.pad_token_id is None:
             tokenizer.pad_token = tokenizer.eos_token
@@ -119,13 +126,14 @@ class PromptBuilder:
         kwargs = dict(self.pc.chat_template_kwargs)
         if self.pc.disable_thinking:
             kwargs.setdefault("enable_thinking", False)
+        apply_fn = self.chat_template_fn or self.tokenizer.apply_chat_template
         try:
-            return self.tokenizer.apply_chat_template(
+            return apply_fn(
                 messages, tokenize=False, add_generation_prompt=True, **kwargs
             )
         except TypeError:
             kwargs.pop("enable_thinking", None)
-            return self.tokenizer.apply_chat_template(
+            return apply_fn(
                 messages, tokenize=False, add_generation_prompt=True, **kwargs
             )
 

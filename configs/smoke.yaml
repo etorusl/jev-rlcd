@@ -3,13 +3,13 @@
 # prompt build -> MC sampling -> readout + Brier backward -> eval -> checkpoint.
 #
 # Usage:  python train.py --config configs/smoke.yaml
-# (Run on the GPU node; the model is loaded 8-bit from cache, no network needed.)
+# Run on the GPU node; the model is loaded 8-bit from cache (no network needed).
 
 prompt:
-  mode: raw
-  marker: "Answer:"
+  mode: chat_template
   disable_thinking: true
-  disable_thinking_phrase: " /no_think"
+  disable_thinking_phrase: ""
+  marker: "Answer:"
 
 label:
   class_order: [1, 0]
@@ -27,11 +27,13 @@ data:
   filter_cache: true
 
 model:
-  model_name_or_path: "Qwen/Qwen3.5-9B"
+  model_name_or_path: "google/gemma-4-12B-it"
   trust_remote_code: false
   local_files_only: true
   torch_dtype: bfloat16
   attn_implementation: sdpa
+  auto_model_class: AutoModelForMultimodalLM
+  use_processor: true
   quantization: 8bit
   prepare_kbit_training: true
   use_gradient_checkpointing: true
@@ -40,6 +42,7 @@ model:
   lora_alpha: 32
   lora_dropout: 0.0
   lora_target_modules: null
+  lora_task_type: null
   modules_to_save: ["lm_head"]
 
 train:
@@ -52,7 +55,8 @@ train:
   sampling_mode: sequential
   max_new_tokens: 96
   temperature: 1.0
-  top_p: 1.0
+  top_p: 0.95
+  top_k: 64
   lr: 2.0e-5
   head_lr: 1.0e-4
   bf16: true

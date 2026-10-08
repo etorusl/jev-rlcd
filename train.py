@@ -2,8 +2,8 @@
 """Entry point for RLCD Stage 1 training.
 
 Example:
-    python train.py --config configs/audit_qwen.yaml
-    python train.py --config configs/audit_qwen.yaml --set train.M=2 --set model.quantization=none
+    python train.py --config configs/audit_gemma.yaml
+    python train.py --config configs/audit_gemma.yaml --set train.M=2 --set model.quantization=none
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from rlcd.config import Config, apply_overrides, config_fingerprint
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="RLCD Stage 1 training")
-    parser.add_argument("--config", type=str, default="configs/audit_qwen.yaml")
+    parser.add_argument("--config", type=str, default="configs/audit_gemma.yaml")
     parser.add_argument(
         "--set",
         dest="overrides",
@@ -119,8 +119,13 @@ def main() -> None:
     if cfg.model.quantization in ("8bit", "4bit"):
         device_map = {"": accelerator.local_process_index}
 
-    model, tokenizer = build_model(cfg.model, device_map=device_map)
-    prompt_builder = PromptBuilder(tokenizer, cfg.prompt, cfg.label)
+    model, tokenizer, processor = build_model(cfg.model, device_map=device_map)
+    prompt_builder = PromptBuilder(
+        tokenizer,
+        cfg.prompt,
+        cfg.label,
+        chat_template_fn=(processor.apply_chat_template if processor is not None else None),
+    )
 
     if cfg.train.resume_from_checkpoint:
         model = _maybe_resume(model, cfg.train.resume_from_checkpoint)

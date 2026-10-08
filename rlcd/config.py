@@ -99,16 +99,18 @@ class DataConfig:
 
 @dataclass
 class ModelConfig:
-    model_name_or_path: str = "Qwen/Qwen3.5-9B"
+    model_name_or_path: str = "google/gemma-4-12B-it"
     trust_remote_code: bool = False
     local_files_only: bool = False  # True -> load from the HF cache, no network
     torch_dtype: str = "bfloat16"  # "bfloat16" | "float16" | "float32"
     attn_implementation: str = "sdpa"  # sdpa dispatches to the flash kernel when available
 
-    # Which Auto* class to load with. Newest multimodal checkpoints (e.g.
-    # Qwen3.5) may need "AutoModelForMultimodalLM"; text-only use
-    # "AutoModelForCausalLM".
+    # Which Auto* class to load with. Newest multimodal checkpoints (Gemma 4,
+    # Qwen3.5) need "AutoModelForMultimodalLM"; text-only use "AutoModelForCausalLM".
     auto_model_class: str = "AutoModelForCausalLM"
+    # Load AutoProcessor (needed by multimodal checkpoints) and use its
+    # .tokenizer + .apply_chat_template.
+    use_processor: bool = False
 
     quantization: str = "8bit"  # "none" | "8bit" | "4bit"
     bnb_4bit_quant_type: str = "nf4"
@@ -124,6 +126,7 @@ class ModelConfig:
     lora_alpha: int = 32
     lora_dropout: float = 0.0
     lora_bias: str = "none"
+    lora_task_type: Optional[str] = "CAUSAL_LM"  # null to let PEFT infer (VLMs)
     # None => every nn.Linear (bnb Linear8bitLt/Linear4bit included).
     lora_target_modules: Optional[List[str]] = None
     # Substring filters applied when auto-detecting target modules. Use this to

@@ -21,6 +21,24 @@ _DTYPE = {
 
 
 def load_tokenizer(cfg: ModelConfig):
+    """Returns (tokenizer, processor). processor is None unless use_processor."""
+    if cfg.use_processor:
+        from transformers import AutoProcessor
+
+        processor = AutoProcessor.from_pretrained(
+            cfg.model_name_or_path,
+            trust_remote_code=cfg.trust_remote_code,
+            local_files_only=cfg.local_files_only,
+        )
+        tokenizer = getattr(processor, "tokenizer", None)
+        if tokenizer is None:
+            raise ValueError(
+                f"AutoProcessor for {cfg.model_name_or_path!r} has no .tokenizer"
+            )
+        if tokenizer.pad_token_id is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        return tokenizer, processor
+
     tokenizer = AutoTokenizer.from_pretrained(
         cfg.model_name_or_path,
         trust_remote_code=cfg.trust_remote_code,
@@ -29,7 +47,7 @@ def load_tokenizer(cfg: ModelConfig):
     )
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
-    return tokenizer
+    return tokenizer, None
 
 
 def load_model(cfg: ModelConfig, device_map=None):
@@ -154,7 +172,7 @@ def apply_peft(model, cfg: ModelConfig):
         bias=cfg.lora_bias,
         target_modules=target_modules,
         modules_to_save=modules_to_save,
-        task_type="CAUSAL_LM",
+        task_type=cfg.lora_task_type,
     )
     return get_peft_model(model, lora_config)
 
@@ -198,7 +216,7 @@ def _gradient_targets(model):
 
 
 def build_model(cfg: ModelConfig, device_map=None):
-    tokenizer = load_tokenizer(cfg)
+    tokenizer, processor = load_tokenizer(cfg)
     model = load_model(cfg, device_map=device_map)
     model = prepare_model(model, cfg)
     model = apply_peft(model, cfg)
@@ -212,7 +230,7 @@ def build_model(cfg: ModelConfig, device_map=None):
         f"{total:,}",
         100.0 * trainable / max(1, total),
     )
-    return model, tokenizer
+    return model, tokenizer, processor
 
 
 def trainable_parameters(model):

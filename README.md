@@ -53,7 +53,7 @@ rlcd/
   trainer.py                 # training + eval + checkpoint loop
   utils.py                   # param counting, memory logging
 configs/
-  audit_qwen.yaml            # main task (Qwen, 8-bit, long context)
+  audit_gemma.yaml           # main task (Gemma 4 12B-it, 8-bit, long context)
   smoke.yaml                 # fast end-to-end sanity run on the real model (from cache)
 scripts/
   setup_cluster.sh           # venv + deps + CUDA check
@@ -97,18 +97,18 @@ bash scripts/setup_cluster.sh
 source .venv/bin/activate
 
 # ensure samples.json is present in the repo root (it is gitignored)
-python train.py --config configs/audit_qwen.yaml
+python train.py --config configs/audit_gemma.yaml
 ```
 
 Common overrides (no editing needed):
 
 ```bash
-# exact model id
-python train.py --config configs/audit_qwen.yaml --model Qwen/Qwen3-8B
+# different model id
+python train.py --config configs/audit_gemma.yaml --model Qwen/Qwen3-8B
 # full-precision training instead of 8-bit
-python train.py --config configs/audit_qwen.yaml --set model.quantization=none
+python train.py --config configs/audit_gemma.yaml --set model.quantization=none
 # different Monte-Carlo count / batch
-python train.py --config configs/audit_qwen.yaml --set train.M=2 --set train.real_batch_size=4
+python train.py --config configs/audit_gemma.yaml --set train.M=2 --set train.real_batch_size=4
 ```
 
 Sanity-check the whole pipeline on the real model first (2 steps + eval + save,
@@ -124,7 +124,8 @@ python train.py --config configs/smoke.yaml
 
 | Area | Key | Notes |
 | --- | --- | --- |
-| Model | `model.model_name_or_path` | `Qwen/Qwen3.5-9B` by default; `trust_remote_code` if needed |
+| Model | `model.model_name_or_path` | `google/gemma-4-12B-it` by default |
+| Loading | `model.auto_model_class`, `model.use_processor` | `AutoModelForMultimodalLM` + `true` for Gemma 4 / Qwen3.5; `AutoModelForCausalLM` + `false` for text-only |
 | Precision | `model.quantization` | `8bit` (default) / `4bit` / `none` (bf16 full precision) |
 | Attention | `model.attn_implementation` | `sdpa` (dispatches to the flash kernel when available) |
 | LoRA | `model.lora_target_modules` | `null` → every Linear layer |
@@ -204,46 +205,46 @@ the local HF cache; you can also export `HF_HUB_OFFLINE=1`.
 
 **Disk space.** The HF cache defaults to `~/.cache/huggingface`. If that volume is
 full you will see `Not enough free disk space to download the file`. Point it at a
-roomy disk before running (Qwen3.5-9B is ~20 GB in bf16):
+roomy disk before running (Gemma 4 12B is ~24 GB in bf16):
 
 ```bash
 export HF_HOME=/workspace/data/hf_cache   # put on a volume with space
 ```
 
-## Qwen3.5 specifics
+## Model specifics: Gemma 4 / new multimodal checkpoints
 
-`Qwen/Qwen3.5-9B` is a very new checkpoint and differs from Qwen3 in ways that
-matter here:
+`google/gemma-4-12B-it` (dense 12B, 256K context) and `Qwen/Qwen3.5-9B` are both
+very new and **multimodal**, which affects loading here:
 
-* **Architecture is unknown to pip `transformers`** (`model_type: qwen3_5`) →
-  install transformers from `main` (see Troubleshooting / setup script).
-* **It is multimodal + hybrid** (vision encoder + Gated DeltaNet/attention +
-  sparse MoE). It loads via `AutoModelForMultimodalLM` rather than
-  `AutoModelForCausalLM`. This is exposed as `model.auto_model_class`:
-  ```bash
-  python train.py --config configs/audit_qwen.yaml --set model.auto_model_class=AutoModelForMultimodalLM
-  ```
-  If a text-only forward pass fails on the multimodal wrapper, use a text-only
-  base model instead or a vLLM `--language-model-only` style export.
-* **There is no soft `/think` `/nothink` switch** (unlike Qwen3). Thinking is
-  toggled through the chat template. Our default `Raw` template cannot disable
-  it, so for Qwen3.5 prefer:
+* **Architecture may be unknown to pip `transformers`** (e.g. `model_type:
+  qwen3_5`) → install transformers from `main` (see Troubleshooting / setup script).
+* **Load with the right classes.** Multimodal checkpoints use `AutoProcessor` +
+  `AutoModelForMultimodalLM`; `configs/audit_gemma.yaml` sets this already:
   ```yaml
-  prompt:
-    mode: chat_template
-    disable_thinking: true   # -> enable_thinking=False in apply_chat_template
+  model:
+    auto_model_class: AutoModelForMultimodalLM
+    use_processor: true
   ```
-* **LoRA over "all linear layers" can be huge** because MoE expert projections are
-  Linear too. If the adapter explodes in size or OOMs, exclude them:
+  Our pipeline still runs a **text-only** forward/generate (no images), which these
+  models support. If a text-only forward fails, fall back to a text-only base.
+* **Disable thinking via the chat template.** Gemma 4 toggles thinking with the
+  `<|think|>` token / `enable_thinking`. `raw` mode bypasses the template, so the
+  config uses `prompt.mode: chat_template` with `disable_thinking: true`
+  (`→ enable_thinking=False`). Note: with thinking disabled Gemma 4 still emits an
+  **empty thought block** (`…thought<channel|>`) before the answer; our marker
+  `Answer:` trimming handles that automatically.
+* **Sampling** follows the model card: `temperature=1.0, top_p=0.95, top_k=64`.
+* **LoRA over "all linear layers"** is fine for dense Gemma 4. For MoE checkpoints
+  the expert projections are Linear too and blow up the adapter — then pass
+  explicit modules or excludes:
   ```bash
   --set model.lora_exclude_modules='["experts","router"]' \
   --set model.lora_target_modules='["q_proj","k_proj","v_proj","o_proj"]'
   ```
-  (Inspect the real names first with `--set` off + the startup log, or a 5-line
-  `named_modules()` print.)
-* **8-bit bitsandbytes** may not yet support this hybrid architecture; if
-  quantization fails, fall back to full precision: `--set model.quantization=none`
-  (bf16 needs ~20 GB of weights on an 80 GB H100).
+* **8-bit bitsandbytes** works for dense Gemma 4; if it fails on an exotic
+  architecture, use full precision: `--set model.quantization=none`
+  (~24 GB of bf16 weights on an 80 GB H100).
+
 
 
 
