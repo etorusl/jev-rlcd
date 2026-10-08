@@ -1,0 +1,31 @@
+# Data (249MB, exceeds GitHub limits) — supply on the cluster via path/scp
+samples.json
+*.jsonl
+data/
+
+# Model / training artifacts
+outputs/
+runs/
+checkpoints/
+wandb/
+*.pt
+*.bin
+*.safetensors
+*.npz
+
+# Tokenizer / HF cache
+.cache/
+hf_cache/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

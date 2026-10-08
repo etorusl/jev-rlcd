@@ -1,0 +1,59 @@
+# Smoke test — tiny model, CPU, no quantization. Validates the whole pipeline
+# (prompt build -> MC sampling -> readout -> Brier backward -> eval -> save).
+# Usage: python train.py --config configs/smoke_cpu.yaml
+
+prompt:
+  mode: raw
+  marker: "Answer:"
+  disable_thinking: false
+
+label:
+  class_order: [1, 0]
+  label_strings:
+    1: ["1", " 1"]
+    0: ["0", " 0"]
+
+data:
+  path: samples.json
+  max_seq_len: 4096
+  oversize_policy: drop
+  val_fraction: 0.2
+  max_val_samples: 2
+  seed: 0
+  filter_cache: false
+
+model:
+  model_name_or_path: "hf-internal-testing/tiny-random-Qwen2ForCausalLM"
+  trust_remote_code: false
+  torch_dtype: float32
+  attn_implementation: eager
+  quantization: none
+  prepare_kbit_training: false
+  use_gradient_checkpointing: false
+  train_scope: lora_plus_head
+  lora_r: 4
+  lora_alpha: 8
+  lora_target_modules: null
+  modules_to_save: ["lm_head"]
+
+train:
+  output_dir: outputs/smoke
+  num_epochs: 1
+  max_steps: 2
+  micro_batch_size: 1
+  real_batch_size: 2
+  M: 2
+  sampling_mode: sequential
+  max_new_tokens: 32
+  temperature: 1.0
+  top_p: 1.0
+  lr: 1.0e-4
+  bf16: false
+  tf32: false
+  log_every: 1
+  save_every: 100
+  eval_every: 100
+  max_eval_batches: 2
+  eval_M: 1
+  skip_oom: true
+  wandb: false
