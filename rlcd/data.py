@@ -84,7 +84,7 @@ class AuditDataset(Dataset):
         dropped_prompt = 0
         prompt_lens: List[int] = []
         max_prompt = self.dc.max_prompt_tokens
-        for idx in tqdm(range(len(self.samples)), desc="filtering by length"):
+        for idx in tqdm(range(len(self.samples)), desc="filtering by length", leave=False):
             sample = self.samples[idx]
             prompt_text = sample[self.dc.prompt_field]
             response_text = sample[self.dc.response_field]

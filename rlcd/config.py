@@ -97,6 +97,9 @@ class DataConfig:
 
     val_fraction: float = 0.05
     max_val_samples: int = 200
+    # Optional cap on the number of TRAINING samples (random subset) for fast
+    # iteration / a first pass before committing to a full epoch.
+    max_samples: Optional[int] = None
     seed: int = 42
     filter_cache: bool = True
 
@@ -165,6 +168,8 @@ class TrainConfig:
     top_p: float = 1.0
     top_k: int = 0
     min_new_tokens: int = 0
+    presence_penalty: float = 0.0
+    repetition_penalty: float = 1.0
 
     lr: float = 2e-5
     head_lr: Optional[float] = None  # separate LR for modules_to_save (e.g. lm_head)
@@ -179,6 +184,7 @@ class TrainConfig:
     seed: int = 42
 
     log_every: int = 1
+    progress_every: int = 25  # log a progress line every N samples
     save_every: int = 200
     eval_every: int = 100
     max_eval_batches: int = 50

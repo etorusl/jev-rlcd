@@ -157,8 +157,14 @@ python train.py --config configs/smoke.yaml
 * **OOM.** `train.skip_oom: true` catches CUDA OOM per micro-step, frees the
   cache and skips that accumulation group instead of crashing.
 * **Speed / memory levers** (generation dominates wall-clock):
+  * `data.max_samples` — train on a random subset (e.g. `1000`) for a fast first
+    pass; the full 5.5k-sample epoch is otherwise very long.
   * `train.max_new_tokens` — hard cap on rationale length (the biggest lever;
-    e.g. `2048`). Stopping on `Answer:` usually ends much earlier.
+    e.g. `1024`). Stopping on `Answer:` usually ends much earlier.
+  * `train.sampling_mode: batched` — generate all `M` rationales in one call
+    (better GPU use). `sequential` uses less memory.
+  * `train.presence_penalty` (e.g. `1.0`) / `train.repetition_penalty` — curb
+    endless rambling → shorter outputs.
   * `data.max_prompt_tokens` — drop long histories (main OOM + prefill cost).
   * `train.M` — rationales per example (linear cost). `2`–`4` is plenty.
   * `train.real_batch_size` — examples per optimizer step (× `M` generations).

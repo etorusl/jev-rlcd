@@ -71,24 +71,32 @@ def sample_cot_full_ids(
     )
     if cfg.top_k and cfg.top_k > 0:
         gen_kwargs["top_k"] = cfg.top_k
+    if cfg.repetition_penalty and cfg.repetition_penalty != 1.0:
+        gen_kwargs["repetition_penalty"] = cfg.repetition_penalty
+    if cfg.presence_penalty:
+        gen_kwargs["presence_penalty"] = cfg.presence_penalty
+
+    def _generate(num_return_sequences: int):
+        kw = dict(gen_kwargs, num_return_sequences=num_return_sequences)
+        try:
+            return model.generate(
+                input_ids=input_ids, attention_mask=attention_mask, **kw
+            )
+        except TypeError as exc:
+            if "presence_penalty" in str(exc) and "presence_penalty" in kw:
+                kw.pop("presence_penalty")
+                return model.generate(
+                    input_ids=input_ids, attention_mask=attention_mask, **kw
+                )
+            raise
 
     sequences: List[torch.Tensor] = []
     if cfg.sampling_mode == "batched" and M > 1:
-        out = model.generate(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            num_return_sequences=M,
-            **gen_kwargs,
-        )
+        out = _generate(M)
         sequences = [out[i] for i in range(out.shape[0])]
     else:
         for _ in range(M):
-            out = model.generate(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                num_return_sequences=1,
-                **gen_kwargs,
-            )
+            out = _generate(1)
             sequences.append(out[0])
 
     results: List[torch.Tensor] = []

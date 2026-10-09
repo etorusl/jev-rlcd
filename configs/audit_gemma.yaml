@@ -67,11 +67,12 @@ train:
   micro_batch_size: 1
   real_batch_size: 8           # gradient accumulation target
   M: 4                         # Monte-Carlo rationale samples per example
-  sampling_mode: sequential
-  max_new_tokens: 2048         # hard cap on rationale length (main time driver)
+  sampling_mode: batched       # generate all M in one call (faster; watch KV memory)
+  max_new_tokens: 1024         # hard cap on rationale length (main time driver)
   temperature: 1.0
   top_p: 0.95                  # Gemma 4 recommended
   top_k: 64                    # Gemma 4 recommended
+  presence_penalty: 1.0        # Gemma 4: curbs endless rambling -> shorter output
   lr: 2.0e-5
   head_lr: 1.0e-4
   weight_decay: 0.0

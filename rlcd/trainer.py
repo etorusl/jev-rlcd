@@ -8,6 +8,7 @@ import json
 import logging
 import math
 import os
+import time
 from typing import Dict, List, Optional
 
 import torch
@@ -120,6 +121,8 @@ class RLCDTrainer:
         train_idx, val_idx = split_indices(
             n, self.cfg.data.val_fraction, self.cfg.data.seed, self.cfg.data.max_val_samples
         )
+        if self.cfg.data.max_samples:
+            train_idx = train_idx[: self.cfg.data.max_samples]
         valid = probe.valid_indices
         self.train_dataset = AuditDataset(
             samples, self.cfg, self.builder, indices=[valid[i] for i in train_idx]
@@ -184,8 +187,19 @@ class RLCDTrainer:
         pbar = tqdm(dataloader, desc=f"epoch {self.epoch}")
         group_ok = True
         skipped = 0
+        seen = 0
+        epoch_start = time.time()
         for batch in pbar:
             sample = batch[0]
+            seen += 1
+            if cfg.progress_every and seen % cfg.progress_every == 0:
+                elapsed = time.time() - epoch_start
+                rate = seen / max(elapsed, 1e-6)
+                cut = self.builder.marker_missing / max(1, self.sampled_rationales)
+                logger.info(
+                    "progress: %d samples | %.1f s/sample | %.1f samples/min | cut=%.1f%% | skip=%d",
+                    seen, elapsed / seen, rate * 60.0, cut * 100.0, skipped,
+                )
 
             with self.accelerator.accumulate(self.model):
                 oom = False
