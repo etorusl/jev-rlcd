@@ -82,13 +82,18 @@ def sample_cot_full_ids(
             return model.generate(
                 input_ids=input_ids, attention_mask=attention_mask, **kw
             )
-        except TypeError as exc:
+        except (TypeError, ValueError) as exc:
             if "presence_penalty" in str(exc) and "presence_penalty" in kw:
+                if not _generate.warned:
+                    _generate.warned = True
+                    logger.warning("presence_penalty unsupported by this generate(); dropping it")
                 kw.pop("presence_penalty")
                 return model.generate(
                     input_ids=input_ids, attention_mask=attention_mask, **kw
                 )
             raise
+
+    _generate.warned = False
 
     sequences: List[torch.Tensor] = []
     if cfg.sampling_mode == "batched" and M > 1:
