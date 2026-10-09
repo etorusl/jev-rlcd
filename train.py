@@ -78,6 +78,7 @@ def setup_logging() -> None:
         stream=sys.stdout,
     )
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+    os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
     # bitsandbytes spams "MatMul8bitLt: inputs will be cast ..." for every layer.
     class _DropCastNoise(logging.Filter):

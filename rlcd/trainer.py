@@ -151,14 +151,26 @@ class RLCDTrainer:
                 return None
         return base.to(self.device)
 
+    def _forward_last_logits(self, full_ids: torch.Tensor) -> torch.Tensor:
+        """Forward keeping logits only for the last position (avoids a
+        [seq_len, vocab] tensor, which OOMs for 260k-vocab models)."""
+        input_ids = full_ids.unsqueeze(0)
+        attention_mask = torch.ones_like(full_ids).unsqueeze(0)
+        for extra in ({"logits_to_keep": 1}, {"num_logits_to_keep": 1}, {}):
+            try:
+                outputs = self.model(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    use_cache=False,
+                    **extra,
+                )
+                return outputs.logits[0, -1, :].float()
+            except TypeError:
+                continue
+        raise RuntimeError("model forward failed with/without logits_to_keep")
+
     def _readout_forward(self, full_ids: torch.Tensor, label: int, M: int) -> torch.Tensor:
-        attention_mask = torch.ones_like(full_ids)
-        outputs = self.model(
-            input_ids=full_ids.unsqueeze(0),
-            attention_mask=attention_mask.unsqueeze(0),
-            use_cache=False,
-        )
-        logits_last = outputs.logits[0, -1, :].float()
+        logits_last = self._forward_last_logits(full_ids)
         return readout_loss(
             logits_last, self.builder.class_token_ids, self.builder.class_order, label, M
         )
@@ -275,14 +287,9 @@ class RLCDTrainer:
                 fulls = sample_cot_full_ids(self.model, self.builder, base_ids, cfg.eval_M, cfg)
                 probs = []
                 for full_ids in fulls:
-                    outputs = self.model(
-                        input_ids=full_ids.unsqueeze(0),
-                        attention_mask=torch.ones_like(full_ids).unsqueeze(0),
-                        use_cache=False,
-                    )
                     probs.append(
                         readout_probs(
-                            outputs.logits[0, -1, :].float(),
+                            self._forward_last_logits(full_ids),
                             self.builder.class_token_ids,
                             self.builder.class_order,
                         )
