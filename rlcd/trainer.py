@@ -54,6 +54,7 @@ class RLCDTrainer:
         self.global_step = 0
         self.epoch = 0
         self.sampled_rationales = 0
+        self._debug_done = False
 
     # ------------------------------------------------------------------ setup
     def build_optimizer(self):
@@ -199,6 +200,12 @@ class RLCDTrainer:
                                 self.model, self.builder, base_ids, cfg.M, cfg
                             )
                             self.sampled_rationales += len(full_list)
+                            if cfg.debug_first_cot and not self._debug_done:
+                                self._debug_done = True
+                                tail = self.tokenizer.decode(
+                                    full_list[0][-400:].tolist(), skip_special_tokens=False
+                                )
+                                logger.info("[debug] first trimmed sequence (tail):\n%s", tail)
                             for full_ids in full_list:
                                 loss = self._readout_forward(full_ids, sample["label"], cfg.M)
                                 self.accelerator.backward(loss)

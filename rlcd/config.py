@@ -187,6 +187,7 @@ class TrainConfig:
     save_eval_predictions: bool = True
 
     skip_oom: bool = True
+    debug_first_cot: bool = False  # log the first sampled+trimmed rationale once
     resume_from_checkpoint: Optional[str] = None
     wandb: bool = False
     run_name: Optional[str] = None
