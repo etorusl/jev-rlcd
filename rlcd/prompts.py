@@ -101,7 +101,7 @@ class PromptBuilder:
 
     # --------------------------------------------------------------- building
     def _system_text(self) -> str:
-        system = self.pc.system
+        system = self.pc.system.replace("{marker}", self.pc.marker)
         if self.pc.disable_thinking and self.pc.disable_thinking_phrase:
             system = system.rstrip() + self.pc.disable_thinking_phrase
         return system
