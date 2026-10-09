@@ -30,7 +30,7 @@ class PromptConfig:
         "Response for hallucinations, fake tool calls, or policy violations against "
         "the Provided Interaction History.\n"
         "Write a step-by-step rationale analyzing the response against the history, "
-        "and end your rationale with the exact marker 'Answer:'."
+        "and end your rationale with the exact marker '{marker}'."
     )
 
     user_template: str = (
