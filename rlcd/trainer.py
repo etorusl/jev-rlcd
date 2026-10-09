@@ -300,24 +300,33 @@ class RLCDTrainer:
         sample_indices: List[int] = []
         limit = min(len(self.val_dataset), cfg.max_eval_batches)
         for i in tqdm(range(limit), desc="eval", leave=False):
-            sample = self.val_dataset[i]
-            base_ids = self._base_ids(sample)
-            if base_ids is None:
-                continue
-            with self.accelerator.autocast():
-                fulls = sample_cot_full_ids(self.model, self.builder, base_ids, cfg.eval_M, cfg)
-                probs = []
-                for full_ids in fulls:
-                    probs.append(
-                        readout_probs(
-                            self._forward_last_logits(full_ids),
-                            self.builder.class_token_ids,
-                            self.builder.class_order,
+            try:
+                sample = self.val_dataset[i]
+                base_ids = self._base_ids(sample)
+                if base_ids is None:
+                    continue
+                with self.accelerator.autocast():
+                    fulls = sample_cot_full_ids(self.model, self.builder, base_ids, cfg.eval_M, cfg)
+                    probs = []
+                    for full_ids in fulls:
+                        probs.append(
+                            readout_probs(
+                                self._forward_last_logits(full_ids),
+                                self.builder.class_token_ids,
+                                self.builder.class_order,
+                            )
                         )
-                    )
-                all_probs.append(torch.stack(probs).mean(0).cpu())
-                labels.append(sample["label"])
-                sample_indices.append(sample.get("index", i))
+                    all_probs.append(torch.stack(probs).mean(0).cpu())
+                    labels.append(sample["label"])
+                    sample_indices.append(sample.get("index", i))
+            except (torch.cuda.OutOfMemoryError, RuntimeError) as exc:
+                if "out of memory" not in str(exc).lower() and not isinstance(
+                    exc, torch.cuda.OutOfMemoryError
+                ):
+                    raise
+                gc.collect()
+                torch.cuda.empty_cache()
+                logger.warning("OOM during eval sample %d — skipping", i)
 
         self.model.config.use_cache = False
         self.model.train()
@@ -394,11 +403,26 @@ class RLCDTrainer:
             cfg.gradient_accumulation_steps,
             steps_per_epoch,
         )
-        for epoch in range(cfg.num_epochs):
-            self.epoch = epoch
-            self.train_epoch(dataloader, cfg.max_steps)
-            if cfg.max_steps and cfg.max_steps > 0 and self.global_step >= cfg.max_steps:
-                break
-        self.evaluate()
-        self.save_checkpoint("final")
+        try:
+            for epoch in range(cfg.num_epochs):
+                self.epoch = epoch
+                self.train_epoch(dataloader, cfg.max_steps)
+                if cfg.max_steps and cfg.max_steps > 0 and self.global_step >= cfg.max_steps:
+                    break
+            self.evaluate()
+            self.save_checkpoint("final")
+        except KeyboardInterrupt:
+            logger.warning("Interrupted — saving a checkpoint before exit")
+            self._safe_save("interrupted")
+            raise
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Run failed (%s) — saving a checkpoint before exit", exc)
+            self._safe_save("crashed")
+            raise
         self.accelerator.wait_for_everyone()
+
+    def _safe_save(self, tag: str) -> None:
+        try:
+            self.save_checkpoint(tag)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Could not save checkpoint on %s: %s", tag, exc)
